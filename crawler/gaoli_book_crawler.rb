@@ -1,6 +1,7 @@
 require 'crawler_rocks'
 require 'iconv'
 require 'pry'
+require 'book_toolkit'
 
 require 'thread'
 require 'thwait'
@@ -9,7 +10,10 @@ require 'parallel'
 class GaoliBookCrawler
   include CrawlerRocks::DSL
 
-  def initialize
+  def initialize update_progress: nil, after_each: nil
+    @update_progress_proc = update_progress
+    @after_each_proc = after_each
+
     @search_url = "http://gau-lih.ge-light.com.tw/tier/front/bin/advsearch.phtml"
     @detail_url = "http://gau-lih.ge-light.com.tw/tier/front/bin/ptdetail.phtml"
     @ic = Iconv.new("utf-8//translit//IGNORE","big5")
@@ -43,7 +47,7 @@ class GaoliBookCrawler
       # Parallel.each_with_index(rows) do |row, index|
         sleep(1) until (
           @detail_threads.delete_if { |t| !t.status };  # remove dead (ended) threads
-          @detail_threads.count < (ENV['MAX_THREADS'] || 10)
+          @detail_threads.count < (ENV['MAX_THREADS'] || 30)
         )
         @detail_threads << Thread.new do
           datas = row.css('td')
@@ -53,6 +57,13 @@ class GaoliBookCrawler
 
           isbn = datas[8] && datas[8].text.strip
           isbn = nil if isbn.empty?
+          invalid_isbn = nil
+          begin
+            isbn = BookToolkit.to_isbn13(isbn)
+          rescue Exception => e
+            invalid_isbn = isbn
+            isbn = nil
+          end
 
           # publisher, cover, 版次
           r = RestClient.get(url)
@@ -78,19 +89,23 @@ class GaoliBookCrawler
           end
 
 
-          @books << {
+          book = {
             category: datas[1] && datas[1].text.strip,
             name: datas[3] && datas[3].text.strip.gsub(/\w+/, &:capitalize),
             author: datas[4] && datas[4].text.strip.gsub(/\w+/, &:capitalize),
-            price: datas[6] && datas[6].text.gsub(/[^\d]/, '').to_i,
+            original_price: datas[6] && datas[6].text.gsub(/[^\d]/, '').to_i,
             internal_code: internal_code,
             url: url,
             isbn: isbn,
+            invalid_isbn: invalid_isbn,
             external_image_url: external_image_url,
             publisher: publisher,
             edition: edition,
+            known_supplier: 'gaoli'
           }
-          print "|"
+          @after_each_proc.call(book: book) if @after_each_proc
+          @books << book
+          # print "|"
         end # end detail thread
       end # end each row
 
@@ -105,5 +120,5 @@ class GaoliBookCrawler
   end
 end
 
-cc = GaoliBookCrawler.new
-File.write('gaoli_books.json', JSON.pretty_generate(cc.books))
+# cc = GaoliBookCrawler.new
+# File.write('gaoli_books.json', JSON.pretty_generate(cc.books))

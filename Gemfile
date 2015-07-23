@@ -5,3 +5,6 @@ gem 'pry'
 gem 'iconv'
 
 gem 'parallel'
+
+gem 'book_toolkit', '~> 0.0.1'
+gem 'web_task_runner'
