@@ -16,7 +16,7 @@ class GaoliBookCrawler
 
     @search_url = "http://gau-lih.ge-light.com.tw/tier/front/bin/advsearch.phtml"
     @detail_url = "http://gau-lih.ge-light.com.tw/tier/front/bin/ptdetail.phtml"
-    @ic = Iconv.new("utf-8//translit//IGNORE","big5")
+    @ic = Iconv.new("utf-8//IGNORE//translit","big5")
     @mutex = Mutex.new
   end
 
